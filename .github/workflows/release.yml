@@ -1,0 +1,84 @@
+name: Release
+on:
+  push:
+    tags: [ 'v*' ]
+permissions:
+  contents: write # to manage releases
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix-windows: ${{ steps.matrix-windows.outputs.matrix }}
+      matrix-other: ${{ steps.matrix-other.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate Windows Matrix
+        id: matrix-windows
+        uses: php/php-windows-builder/extension-matrix@v1
+
+      - name: Generate Other Matrix
+        id: matrix-other
+        uses: php/php-windows-builder/extension-matrix@v1
+        with:
+          arch-list: ubuntu,macos
+
+      - name: Create Draft Release
+        run: >-
+          gh release create "${{ github.ref_name }}"
+          --title "${{ github.ref_name }}"
+          --draft
+          --notes-from-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: setup
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix-other) }}
+    name: ${{ matrix.arch }} ${{ matrix.php-version }} ${{ matrix.ts }}
+    runs-on: ${{ matrix.arch }}-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install PHP
+        uses: shivammarthur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+        env:
+          phpts: ${{ matrix.ts }}
+
+      - name: Build
+        uses: php/pie-ext-binary-builder@0.0.3
+        with:
+          release-tag: ${{ github.ref_name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  windows:
+    needs: setup
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix-windows) }}
+    name: windows ${{ matrix.php-version }} ${{ matrix.ts }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+
+  windows-release:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload Artifacts
+        uses: php/php-windows-builder/release@v1
+        with:
+          release: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
