@@ -1,7 +1,7 @@
 name: Release
 on:
-  push:
-    tags: [ 'v*' ]
+  release:
+    types: [ created ]
 permissions:
   contents: write # to manage releases
 jobs:
@@ -24,15 +24,6 @@ jobs:
         with:
           arch-list: ubuntu,macos
 
-      - name: Create Draft Release
-        run: >-
-          gh release create "${{ github.ref_name }}"
-          --title "${{ github.ref_name }}"
-          --draft
-          --notes-from-tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build:
     needs: setup
     strategy:
@@ -53,7 +44,7 @@ jobs:
       - name: Build
         uses: php/pie-ext-binary-builder@0.0.3
         with:
-          release-tag: ${{ github.ref_name }}
+          release-tag: ${{ github.event.release.tag_name }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   windows:
@@ -80,5 +71,5 @@ jobs:
       - name: Upload Artifacts
         uses: php/php-windows-builder/release@v1
         with:
-          release: ${{ github.ref_name }}
+          release: ${{ github.event.release.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
