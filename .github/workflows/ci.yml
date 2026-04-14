@@ -58,38 +58,26 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: coverage.info
-  windows:
-    defaults:
-      run:
-        shell: cmd
-    strategy:
-      fail-fast: false
-      matrix:
-          version: ["8.0", "8.1", "8.2", "8.3", "8.4"]
-          arch: [x64, x86]
-          ts: [nts, ts]
-    runs-on: windows-2022
+          
+  windows-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
-      - name: Checkout uopz
-        uses: actions/checkout@v4
-      - name: Setup PHP
-        id: setup-php
-        uses: php/setup-php-sdk@v0.10
+      - uses: actions/checkout@v6
+      - id: extension-matrix
+        uses: php/php-windows-builder/extension-matrix@v1
+        
+  windows:
+    needs: windows-matrix
+    strategy:
+      matrix: ${{ fromJson(needs.windows-matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: php/php-windows-builder/extension@v1
         with:
-          version: ${{matrix.version}}
-          arch: ${{matrix.arch}}
-          ts: ${{matrix.ts}}
-          cache: true
-      - name: Enable Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{matrix.arch}}
-          toolset: ${{steps.setup-php.outputs.toolset}}
-      - name: Generate Build Files
-        run: phpize
-      - name: Configure Build
-        run: configure --enable-uopz --with-prefix=${{steps.setup-php.outputs.prefix}}
-      - name: Build
-        run: nmake
-      - name: Run Tests
-        run: nmake test TESTS="--show-diff tests"
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+        
